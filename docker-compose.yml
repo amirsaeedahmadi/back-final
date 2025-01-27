@@ -1,0 +1,303 @@
+version: '3.9'
+
+services:
+  discovery:
+    image: amiril/kalado_discovery:latest
+    container_name: discovery
+    build:
+      context: ./discovery
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_APPLICATION_NAME=Eureka-Discovery-Service
+      - SERVER_PORT=18761
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery:18761/eureka/
+      - EUREKA_INSTANCE_HOSTNAME=discovery
+      - EUREKA_SERVER_ENABLE_SELF_PRESERVATION=false
+      - EUREKA_CLIENT_REGISTER_WITH_EUREKA=false
+      - EUREKA_CLIENT_FETCH_REGISTRY=false
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=prometheus,health
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+    networks:
+      - kalado-net
+
+  gateway:
+    image: amiril/kalado_gateway:latest
+    container_name: gateway
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_APPLICATION_NAME=API-Gateway
+      - SERVER_PORT=8083
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery:18761/eureka/
+      - SPRING_CLOUD_GATEWAY_DISCOVERY_LOCATOR_ENABLED=true
+      - SPRING_CLOUD_GATEWAY_DISCOVERY_LOCATOR_LOWER_CASE_SERVICE_ID=true
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=prometheus,health
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+    depends_on:
+      - discovery
+    ports:
+      - "8083:8083"
+    networks:
+      - kalado-net
+
+  authentication:
+    image: amiril/kalado_authentication:latest
+    container_name: authentication
+    build:
+      context: ./authentication
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_APPLICATION_NAME=authentication-service
+      - SERVER_PORT=8081
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/kalado
+      - SPRING_DATASOURCE_USERNAME=kalado
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+      - SPRING_REDIS_PASSWORD=${REDIS_PASSWORD}
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery:18761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=prometheus,health
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+      - JWT_SECRET_KEY=X71wHJEhg1LQE5DzWcdc/BRAgIvnqHYiZHBbqgrBOZLzwlHlHh/W1ScQGwd1XM8V1c5vtgGlDS8lb64zjZEZXg==
+    depends_on:
+      - discovery
+      - postgres
+      - redis
+    networks:
+      - kalado-net
+
+  user:
+    image: amiril/kalado_user:latest
+    container_name: user
+    build:
+      context: ./user
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_APPLICATION_NAME=user-service
+      - SERVER_PORT=8085
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/kalado
+      - SPRING_DATASOURCE_USERNAME=kalado
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery:18761/eureka/
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=prometheus,health
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+    depends_on:
+      - discovery
+      - postgres
+    networks:
+      - kalado-net
+
+  product:
+    image: amiril/kalado_product:latest
+    container_name: product
+    build:
+      context: ./product
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_APPLICATION_NAME=product-service
+      - SERVER_PORT=8082
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/kalado
+      - SPRING_DATASOURCE_USERNAME=kalado
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+      - SPRING_REDIS_PASSWORD=${REDIS_PASSWORD}
+      # Kafka config
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery:18761/eureka/
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=prometheus,health
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+    depends_on:
+      - discovery
+      - postgres
+      - redis
+      - kafka
+    networks:
+      - kalado-net
+
+  search:
+    image: amiril/kalado_search:latest
+    container_name: search
+    build:
+      context: ./search
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_APPLICATION_NAME=search-service
+      - SERVER_PORT=8084
+      # Database config
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/kalado
+      - SPRING_DATASOURCE_USERNAME=kalado
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      # Elasticsearch config
+      - SPRING_ELASTICSEARCH_URIS=http://elasticsearch:9200
+      - SPRING_ELASTICSEARCH_USERNAME=elastic
+      - SPRING_ELASTICSEARCH_PASSWORD=kalado_pass
+      # Kafka config
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery:18761/eureka/
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=prometheus,health
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+    depends_on:
+      - discovery
+      - elasticsearch
+      - postgres
+      - kafka
+    networks:
+      - kalado-net
+
+  reporting:
+    image: amiril/kalado_reporting:latest
+    container_name: reporting
+    build:
+      context: ./reporting
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_APPLICATION_NAME=reporting-service
+      - SERVER_PORT=8086
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/kalado
+      - SPRING_DATASOURCE_USERNAME=kalado
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery:18761/eureka/
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=prometheus,health
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+    depends_on:
+      - discovery
+      - postgres
+    networks:
+      - kalado-net
+
+
+  payment:
+    image: amiril/kalado_payment:latest
+    container_name: payment
+    build:
+      context: ./payment
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_APPLICATION_NAME=payment-service
+      - SERVER_PORT=8089
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/kalado
+      - SPRING_DATASOURCE_USERNAME=kalado
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery:18761/eureka/
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=prometheus,health
+      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
+      - MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED=true
+    depends_on:
+      - discovery
+      - postgres
+    networks:
+      - kalado-net
+
+  postgres:
+    image: postgres:14
+    container_name: postgres
+    environment:
+      - POSTGRES_USER=kalado
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=kalado
+#    ports:
+#      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - kalado-net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U kalado" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+#    ports:
+#      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - kalado-net
+
+  elasticsearch:
+    image: elasticsearch:7.17.9
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - ELASTIC_PASSWORD=kalado_pass
+      - xpack.security.enabled=true
+#    ports:
+#      - "9200:9200"
+    networks:
+      - kalado-net
+
+  #zookeeper:
+  #  image: confluentinc/cp-zookeeper:latest
+  #  environment:
+  #    ZOOKEEPER_CLIENT_PORT: 2181
+  #    ZOOKEEPER_TICK_TIME: 2000
+  #  networks:
+  #    - kalado-net
+
+  zookeeper:
+    image: docker.io/bitnami/zookeeper:3.9.2
+    container_name: zookeeper
+    restart: always
+#    ports:
+#      - '2181:2181'
+   # volumes:
+   #   - zookeeper_data:/bitnami
+    networks:
+      - kalado-net
+      #- broker-net
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ALLOW_ANONYMOUS_LOGIN: yes
+
+
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - zookeeper
+       # condition: service_healthy
+#    ports:
+#        - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: [ "CMD", "kafka-topics", "--bootstrap-server", "kafka:29092", "--list" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - kalado-net
+
+
+networks:
+  kalado-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+

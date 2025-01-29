@@ -17,14 +17,13 @@ public enum ErrorCode {
     NO_CONTENT(HttpStatus.NO_CONTENT, HttpStatus.NO_CONTENT, 204, "No_content"),
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, HttpStatus.UNAUTHORIZED, 401, "Invalid_credentials"),
     NOT_FOUND(HttpStatus.NOT_FOUND, HttpStatus.NOT_FOUND, 404, "Resource_not_found"),
-    NOT_FOUND_NO_CONTENT(HttpStatus.NOT_FOUND, HttpStatus.NO_CONTENT, 204, "Resource_not_found"),
-    CONFLICT(HttpStatus.CONFLICT, HttpStatus.CONFLICT, 409, "Conflict"),
-    UNPROCESSABLE_ENTITY(HttpStatus.UNPROCESSABLE_ENTITY, HttpStatus.UNPROCESSABLE_ENTITY, 422, "Unprocessable_entity"),
-    PAYMENT_REQUIRED(HttpStatus.PAYMENT_REQUIRED, HttpStatus.PAYMENT_REQUIRED, 402, "Payment_required"),
-    METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, HttpStatus.METHOD_NOT_ALLOWED, 405, "Method_not_allowed"),
-    UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, HttpStatus.UNSUPPORTED_MEDIA_TYPE, 415, "Unsupported_media_type"),
-    TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, HttpStatus.TOO_MANY_REQUESTS, 429, "Too_many_requests"),
-    EMAIL_NOT_VERIFIED(HttpStatus.UNAUTHORIZED, HttpStatus.UNAUTHORIZED, 401, "Email_not_verified");
+
+    ROLE_CHANGE_NOT_ALLOWED(HttpStatus.FORBIDDEN, HttpStatus.FORBIDDEN, 403, "Role_change_not_allowed"),
+    INVALID_ROLE_TRANSITION(HttpStatus.BAD_REQUEST, HttpStatus.BAD_REQUEST, 400, "Invalid_role_transition"),
+    UNAUTHORIZED_ROLE_ACCESS(HttpStatus.FORBIDDEN, HttpStatus.FORBIDDEN, 403, "Unauthorized_role_access"),
+    GOD_ROLE_MODIFICATION_FORBIDDEN(HttpStatus.FORBIDDEN, HttpStatus.FORBIDDEN, 403, "God_role_modification_forbidden"),
+    EMAIL_NOT_VERIFIED(HttpStatus.UNAUTHORIZED, HttpStatus.UNAUTHORIZED, 401, "Email_not_verified"),
+    INSUFFICIENT_PRIVILEGES(HttpStatus.FORBIDDEN, HttpStatus.FORBIDDEN, 403, "Insufficient_privileges");
 
     private final HttpStatus httpStatus;
     private final HttpStatus clientHttpStatus;

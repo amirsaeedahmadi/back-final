@@ -34,7 +34,7 @@
         <dependency>
             <groupId>co.elastic.clients</groupId>
             <artifactId>elasticsearch-java</artifactId>
-            <version>8.15.5</version>
+            <version>7.17.9</version>
         </dependency>
         <dependency>
             <groupId>com.kalado</groupId>

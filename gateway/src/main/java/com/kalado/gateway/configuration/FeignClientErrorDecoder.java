@@ -2,6 +2,7 @@ package com.kalado.gateway.configuration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kalado.common.response.ErrorResponse;
+import feign.FeignException;
 import feign.Response;
 import feign.codec.ErrorDecoder;
 import lombok.RequiredArgsConstructor;
@@ -19,53 +20,48 @@ public class FeignClientErrorDecoder implements ErrorDecoder {
   @Override
   public Exception decode(String methodKey, Response response) {
     ErrorResponse errorResponse = null;
+    byte[] bodyData = null;
 
     try (InputStream bodyIs = response.body().asInputStream()) {
-      errorResponse = objectMapper.readValue(bodyIs, ErrorResponse.class);
+      bodyData = bodyIs.readAllBytes();
+      errorResponse = objectMapper.readValue(bodyData, ErrorResponse.class);
     } catch (IOException e) {
       log.warn("Could not decode error response body", e);
     }
 
     String message = errorResponse != null ? errorResponse.getMessage() : "";
-    byte[] body = null;
 
     return switch (response.status()) {
-      case 400 -> new feign.FeignException.BadRequest(
-              methodKey,
+      case 400 -> new FeignException.BadRequest(
+              message,
               response.request(),
-              body,
-              Collections.emptyMap()
+              bodyData,
+              response.headers()
       );
-      case 401 -> new feign.FeignException.Unauthorized(
-              methodKey,
+      case 401 -> new FeignException.Unauthorized(
+              message,
               response.request(),
-              body,
-              Collections.emptyMap()
+              bodyData,
+              response.headers()
       );
-      case 403 -> new feign.FeignException.Forbidden(
-              methodKey,
+      case 403 -> new FeignException.Forbidden(
+              message,
               response.request(),
-              body,
-              Collections.emptyMap()
+              bodyData,
+              response.headers()
       );
-      case 404 -> new feign.FeignException.NotFound(
-              methodKey,
+      case 404 -> new FeignException.NotFound(
+              message,
               response.request(),
-              body,
-              Collections.emptyMap()
+              bodyData,
+              response.headers()
       );
-      case 409 -> new feign.FeignException.Conflict(
-              methodKey,
-              response.request(),
-              body,
-              Collections.emptyMap()
-      );
-      default -> new feign.FeignException.FeignClientException(
+      default -> new FeignException.FeignServerException(
               response.status(),
-              methodKey,
+              message,
               response.request(),
-              body,
-              Collections.emptyMap()
+              bodyData,
+              response.headers()
       );
     };
   }

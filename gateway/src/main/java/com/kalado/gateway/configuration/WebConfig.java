@@ -1,6 +1,7 @@
 package com.kalado.gateway.configuration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kalado.gateway.exception.GatewayExceptionHandler;
 import feign.codec.ErrorDecoder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -12,7 +13,6 @@ import org.springframework.web.multipart.support.StandardServletMultipartResolve
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-import com.kalado.gateway.exception.ExceptionHandlerAdvice;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -42,37 +42,13 @@ public class WebConfig implements WebMvcConfigurer {
     }
 
     @Bean
-    public ExceptionHandlerAdvice exceptionHandlerAdvice(ObjectMapper objectMapper) {
-        return new ExceptionHandlerAdvice(objectMapper);
+    public GatewayExceptionHandler exceptionHandlerAdvice(ObjectMapper objectMapper) {
+        return new GatewayExceptionHandler(objectMapper);
     }
-
-    // @Override
-    // public void addCorsMappings(CorsRegistry registry) {
-    //     registry.addMapping("/**")
-    //             .allowedOrigins("http://localhost:8080", "http://kaladoshop.com/")
-    //             .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
-    //             .allowedHeaders("*")
-    //             .exposedHeaders("Content-Disposition")
-    //             .maxAge(3600);
-    // }
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry
-            // .addMapping("/**")
-
-            // // .allowedOrigins("*")
-            // .allowedOrigins("http://localhost:8080", "http://kaladoshop.com")
-
-
-
-            // .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
-
-            // .allowedHeaders("*")
-
-            // .allowCredentials(true)
-
-            // .maxAge(3600);
         .addMapping("/**")
 
         .allowedOrigins(

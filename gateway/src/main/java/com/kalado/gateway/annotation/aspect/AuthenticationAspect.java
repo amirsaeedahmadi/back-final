@@ -35,15 +35,22 @@ public class AuthenticationAspect {
   private final AuthenticationApi authenticationApi;
   private static final Map<String, List<Role>> ROLE_PATH_ACCESS =
           Map.ofEntries(
-                  entry("/v1/payment", List.of(Role.USER, Role.ADMIN)),
-                  entry("/v1/user", List.of(Role.USER, Role.ADMIN)),
-                  entry("/v1/create", List.of(Role.USER, Role.ADMIN)),
-                  entry("/v1/reports", List.of(Role.USER, Role.ADMIN)),
-                  entry("/v1/reports/*", List.of(Role.ADMIN)),
-                  entry("/v1/reports/admin/all", List.of(Role.ADMIN)),
-                  entry("/v1/product", List.of(Role.USER, Role.ADMIN)),
-                  entry("/v1/product/seller/*", List.of(Role.ADMIN)),
-                  entry("/v1/product/*", List.of(Role.USER, Role.ADMIN)));
+                  entry("/v1/auth/update-role", List.of(Role.GOD)),
+
+                  entry("/v1/payment", List.of(Role.USER, Role.GOD)),
+                  entry("/v1/user/all", List.of(Role.ADMIN, Role.GOD)),
+                  entry("/v1/user", List.of(Role.USER, Role.GOD)),
+
+                  entry("/v1/product", List.of(Role.USER, Role.GOD)),
+                  entry("/v1/product/seller/*", List.of(Role.USER, Role.GOD)),
+                  entry("/v1/product/*", List.of(Role.USER, Role.GOD)),
+
+                  entry("/v1/reports", List.of(Role.USER, Role.GOD)),
+                  entry("/v1/reports/admin/all", List.of(Role.ADMIN, Role.GOD)),
+                  entry("/v1/reports/admin/statistics", List.of(Role.ADMIN, Role.GOD)),
+
+                  entry("/v1/reports/admin/*", List.of(Role.ADMIN, Role.GOD))
+          );
 
   @Around("@annotation(authentication)")
   public Object authentication(ProceedingJoinPoint joinPoint, Authentication authentication)
@@ -62,6 +69,7 @@ public class AuthenticationAspect {
 
     String tokenExpression = authentication.token();
     String userIdExpression = authentication.userId();
+
     if (httpServletRequestOptional.isEmpty()) {
       log.error("HttpServletRequest not found");
       throw new CustomException(ErrorCode.INVALID_TOKEN, "Invalid token");
@@ -78,12 +86,18 @@ public class AuthenticationAspect {
       log.error("Invalid token: {}", token);
       throw new CustomException(ErrorCode.UNAUTHORIZED, "Unauthorized");
     }
+
     String requestPath = httpServletRequestOptional.get().getRequestURI();
 
-    if (!isAccessAllowed(authDto.getRole(), requestPath)) {
-      log.error(
-              "Access denied for user with roles: {} to path: {}", authDto.getRole(), requestPath);
-      throw new CustomException(ErrorCode.FORBIDDEN, "Access denied");
+    if (authDto.getRole() != Role.GOD) {
+      if (!isAccessAllowed(authDto.getRole(), requestPath)) {
+        log.error(
+                "Access denied for user with role: {} to path: {}",
+                authDto.getRole(),
+                requestPath
+        );
+        throw new CustomException(ErrorCode.FORBIDDEN, "Access denied");
+      }
     }
 
     if (!tokenExpression.isBlank()) {
@@ -100,6 +114,10 @@ public class AuthenticationAspect {
   }
 
   private boolean isAccessAllowed(Role role, String requestPath) {
+    if (role == Role.GOD) {
+      return true;
+    }
+
     return ROLE_PATH_ACCESS.entrySet().stream()
             .filter(entry -> requestPath.startsWith(entry.getKey()))
             .flatMap(entry -> entry.getValue().stream())

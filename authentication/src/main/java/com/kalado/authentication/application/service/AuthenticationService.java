@@ -1,5 +1,6 @@
 package com.kalado.authentication.application.service;
 
+import com.kalado.authentication.configuration.AdminConfiguration;
 import com.kalado.authentication.domain.model.AuthenticationInfo;
 import com.kalado.common.dto.AuthDto;
 import com.kalado.common.dto.AdminDto;
@@ -17,16 +18,14 @@ import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import java.security.Key;
-import java.util.Date;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -38,6 +37,7 @@ public class AuthenticationService {
   private final RedisTemplate<String, Long> redisTemplate;
   private final UserApi userApi;
   private final VerificationService verificationService;
+  private final AdminConfiguration adminConfig;
 
   private static final String SECRET_KEY =
       "X71wHJEhg1LQE5DzWcdc/BRAgIvnqHYiZHBbqgrBOZLzwlHlHh/W1ScQGwd1XM8V1c5vtgGlDS8lb64zjZEZXg==";
@@ -61,7 +61,7 @@ public class AuthenticationService {
       throw new CustomException(ErrorCode.EMAIL_NOT_VERIFIED, "Email not verified");
     }
 
-    if (authInfo.getRole() != Role.ADMIN) {
+    if (authInfo.getRole() == Role.USER) {
       try {
         UserDto userDto = userApi.getUserProfile(authInfo.getUserId());
         if (userDto != null && userDto.isBlocked()) {
@@ -157,11 +157,16 @@ public class AuthenticationService {
   }
 
 
+  @Transactional
   public AuthenticationInfo register(RegistrationRequestDto request) {
     validateRegistrationInput(request);
 
+    if (request.getRole() == Role.GOD || request.getRole() == Role.ADMIN) {
+      validatePrivilegedRegistration(request.getEmail(), request.getRole());
+    }
+
     AuthenticationInfo existingUser = authRepository.findByUsername(request.getEmail());
-    if (Objects.nonNull(existingUser)) {
+    if (existingUser != null) {
       log.info("User already exists: {}", existingUser);
       throw new CustomException(ErrorCode.USER_ALREADY_EXISTS, "User already exists");
     }
@@ -184,7 +189,7 @@ public class AuthenticationService {
             .build();
 
     switch (request.getRole()) {
-      case ADMIN -> userApi.createAdmin(AdminDto.builder()
+      case GOD, ADMIN -> userApi.createAdmin(AdminDto.builder()
               .id(authenticationInfo.getUserId())
               .firstName(request.getFirstName())
               .lastName(request.getLastName())
@@ -192,9 +197,70 @@ public class AuthenticationService {
               .build());
       case USER -> userApi.createUser(userDto);
     }
+
     verificationService.createVerificationToken(authenticationInfo);
 
     return authenticationInfo;
+  }
+
+  private void validatePrivilegedRegistration(String email, Role role) {
+    if (role == Role.GOD) {
+      if (!adminConfig.isEmailAuthorizedForGod(email)) {
+        log.warn("Unauthorized attempt to register as GOD: {}", email);
+        throw new CustomException(
+                ErrorCode.FORBIDDEN,
+                "GOD registration is restricted to authorized emails only"
+        );
+      }
+    } else if (role == Role.ADMIN) {
+      if (!adminConfig.isEmailAuthorizedForAdmin(email)) {
+        log.warn("Unauthorized attempt to register as admin: {}", email);
+        throw new CustomException(
+                ErrorCode.FORBIDDEN,
+                "Admin registration is restricted to authorized emails only"
+        );
+      }
+    }
+  }
+
+  @Transactional
+  public void updateUserRole(Long userId, Role newRole, Long requestingUserId) {
+    AuthenticationInfo requestingUser = findUserById(requestingUserId)
+            .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "Requesting user not found"));
+
+    if (requestingUser.getRole() != Role.GOD) {
+      throw new CustomException(ErrorCode.FORBIDDEN, "Only GOD role can modify user roles");
+    }
+
+    AuthenticationInfo targetUser = findUserById(userId)
+            .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "Target user not found"));
+
+    if (targetUser.getRole() == Role.GOD) {
+      throw new CustomException(ErrorCode.FORBIDDEN, "Cannot modify GOD role");
+    }
+
+    targetUser.setRole(newRole);
+    authRepository.save(targetUser);
+
+    if (newRole == Role.ADMIN) {
+      UserDto userProfile = userApi.getUserProfile(userId);
+      userApi.createAdmin(AdminDto.builder()
+              .id(userId)
+              .firstName(userProfile.getFirstName())
+              .lastName(userProfile.getLastName())
+              .phoneNumber(userProfile.getPhoneNumber())
+              .build());
+    }
+  }
+
+  private void validateAdminRegistration(String email) {
+      if (!adminConfig.isEmailAuthorizedForAdmin(email)) {
+        log.warn("Unauthorized attempt to register as admin: {}", email);
+        throw new CustomException(
+                ErrorCode.FORBIDDEN,
+                "Initial admin registration is restricted to authorized emails only"
+        );
+      }
   }
 
   private void validateRegistrationInput(RegistrationRequestDto request) {
@@ -241,5 +307,53 @@ public class AuthenticationService {
 
   public String getUsername(Long userId) {
     return authRepository.findById(userId).map(AuthenticationInfo::getUsername).orElse(null);
+  }
+
+  @Transactional
+  public void updatePassword(Long userId, String currentPassword, String newPassword) {
+    AuthenticationInfo authInfo = authRepository.findById(userId)
+            .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "User not found"));
+
+    if (!passwordEncoder.matches(currentPassword, authInfo.getPassword())) {
+      throw new CustomException(ErrorCode.INVALID_CREDENTIALS, "Current password is incorrect");
+    }
+
+    authInfo.setPassword(passwordEncoder.encode(newPassword));
+    authRepository.save(authInfo);
+
+    redisTemplate.keys("*").stream()
+            .filter(key -> redisTemplate.opsForValue().get(key).equals(userId))
+            .forEach(redisTemplate::delete);
+
+    log.info("Password updated successfully for user ID: {}", userId);
+  }
+
+  public boolean verifyPassword(AuthenticationInfo user, String password) {
+    return passwordEncoder.matches(password, user.getPassword());
+  }
+
+  @Transactional
+  public void updateUserPassword(Long userId, String newPassword) {
+    AuthenticationInfo user = authRepository.findById(userId)
+            .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "User not found"));
+
+    user.setPassword(passwordEncoder.encode(newPassword));
+    authRepository.save(user);
+
+    invalidateUserTokens(userId);
+  }
+
+  private void invalidateUserTokens(Long userId) {
+    Set<String> keys = redisTemplate.keys("*");
+    if (keys != null) {
+      keys.stream()
+              .filter(key -> redisTemplate.opsForValue().get(key) != null)
+              .filter(key -> redisTemplate.opsForValue().get(key).equals(userId))
+              .forEach(redisTemplate::delete);
+    }
+  }
+
+  public Optional<AuthenticationInfo> findUserById(Long userId) {
+    return authRepository.findById(userId);
   }
 }

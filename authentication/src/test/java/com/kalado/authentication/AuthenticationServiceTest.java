@@ -211,17 +211,14 @@ class AuthenticationServiceTest {
 
     @Test
     void register_WithMissingRequiredFields_ShouldThrowException() {
-        // Arrange
         RegistrationRequestDto request = RegistrationRequestDto.builder()
                 .password("password")
-                // Missing firstName
                 .lastName("Doe")
                 .phoneNumber("1234567890")
                 .email("test@example.com")
                 .role(Role.USER)
                 .build();
 
-        // Act & Assert
         CustomException exception = assertThrows(
                 CustomException.class,
                 () -> authService.register(request)
@@ -230,7 +227,6 @@ class AuthenticationServiceTest {
         assertEquals(ErrorCode.INVALID_CREDENTIALS, exception.getErrorCode());
         assertEquals("First name cannot be empty", exception.getMessage());
 
-        // Verify no side effects
         verify(authRepository, never()).save(any());
         verify(userApi, never()).createUser(any());
         verify(verificationService, never()).createVerificationToken(any());

@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Map;
+
 @Data
 @Builder
 @AllArgsConstructor
@@ -16,9 +18,5 @@ public class ErrorResponse {
   private Integer status;
   private String error;
   private String path;
-
-  public ErrorResponse(Integer errorCode, String message) {
-    this.errorCode = errorCode;
-    this.message = message;
-  }
+  private Map<String, String> details;
 }

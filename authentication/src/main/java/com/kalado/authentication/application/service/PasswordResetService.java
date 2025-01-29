@@ -32,14 +32,12 @@ public class PasswordResetService {
     public void createPasswordResetTokenForUser(String email) {
         AuthenticationInfo user = authRepository.findByUsername(email);
         if (user == null) {
-            // For security reasons, we still return success even if the email doesn't exist
             log.warn("Password reset requested for non-existent user: {}", email);
             return;
         }
 
         String token = generateToken();
 
-        // Delete any existing tokens for this user
         tokenRepository.findAll().stream()
                 .filter(t -> t.getUser().getUserId() == user.getUserId())
                 .forEach(tokenRepository::delete);

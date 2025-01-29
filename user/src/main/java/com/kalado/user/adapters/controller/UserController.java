@@ -1,8 +1,8 @@
 package com.kalado.user.adapters.controller;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kalado.common.dto.AdminDto;
+import com.kalado.common.dto.ProfileUpdateResponseDto;
 import com.kalado.common.dto.UserDto;
 import com.kalado.common.dto.UserProfileUpdateDto;
 import com.kalado.common.enums.ErrorCode;
@@ -22,6 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.net.MalformedURLException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -35,16 +36,20 @@ public class UserController implements UserApi {
 
   @Override
   @PostMapping(value = "/user/modifyProfile", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-  public Boolean modifyUserProfile(
+  public ProfileUpdateResponseDto modifyUserProfile(
           @RequestPart("profile") String profileJson,
           @RequestPart(value = "profileImage", required = false) MultipartFile profileImage) {
     try {
       UserProfileUpdateDto profileDto = objectMapper.readValue(profileJson, UserProfileUpdateDto.class);
+
       return userService.modifyUserProfile(profileDto, profileImage);
+
     } catch (Exception e) {
       log.error("Error processing profile update: {}", e.getMessage());
-      throw new CustomException(ErrorCode.BAD_REQUEST,
-              "Error processing profile update: " + e.getMessage());
+      throw new CustomException(
+              ErrorCode.BAD_REQUEST,
+              "Error processing profile update: " + e.getMessage()
+      );
     }
   }
 
@@ -89,4 +94,18 @@ public class UserController implements UserApi {
     }
   }
 
+  @Override
+  @GetMapping("/user/all")
+  public List<UserDto> getAllUsers() {
+    try {
+      log.debug("Fetching all users");
+      return userService.getAllUsers();
+    } catch (Exception e) {
+      log.error("Error fetching all users: {}", e.getMessage());
+      throw new CustomException(
+              ErrorCode.INTERNAL_SERVER_ERROR,
+              "Error retrieving users: " + e.getMessage()
+      );
+    }
+  }
 }
